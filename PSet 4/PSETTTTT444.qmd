@@ -1,0 +1,199 @@
+---
+title: "Problem Set 4"
+author: "Sierra Manship"
+date: "April 20, 2026"
+institute: "American University"
+format: pdf
+knitr: 
+  opts_chunk: 
+    echo: true
+    eval: true
+    prompt: false
+    tidy: false
+    comment: NA
+    message: FALSE
+    warning: FALSE
+    fig.align: 'center'
+    cache: true
+---
+
+# Summary 
+
+
+For my topic I decided to ask the simple question: How does war affect inflation? 
+
+For this question, finding a data set with everything I wanted in one was very difficult. Which led me to find two different data sets. The first data set is one from the Uppsala Conflict Data Program (UCDP). The UCDP data includes the conflict type, the country and year that a conflict occurred in. For research purposes, I only kept whether or not a conflict occurred (1 = Yes, 0 = No/NA), the year, and the country that it occurred in. The second data set I collected data from was the World Bank Global Inflation Database, which includes multiple inflation measures, the years, and countries. 
+
+Overall, we can see that inflation rates during conflict periods tend to be much higher compared to non-conflict periods. Not only is war associated with higher average inflation, it is also associated with increased economic instability. 
+
+
+# Motivation
+
+
+If I were to outline the top three things most important to world leaders across the board, it would be the economy. Therefore, understanding how war, which is something that world leaders continue to face, affects the economy is crucial. It is important to assess what the true costs and consequences countries are facing when it comes to defense spending during war or the impacts the economy faces after the war. Not only do countries face immediate impacts from war, but they also face lasting economic impacts far after the conflict ends.
+
+
+# Data and Measurement
+
+
+To provide an in depth look at how inflation is affected by conflict across countries, I provide a few different routes to look at it. Before we are able to look at the data, we have to clean and merge the two data sets I described above. First, I have to set up the environment.
+
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(knitr)
+library(kableExtra)
+
+conflict <- read_csv("conflictdata.csv")
+inflation <- read_excel("inflationdata.xlsx")
+```
+
+
+Once the environment is set up, I worked on cleaning up the column names in order to make it easier to merge the data sets together. On top of cleaning up column names, I also created a new variable titled 'War', to decipher more easily between conflict versus non-conflict periods.
+
+
+```{r}
+conflict <- conflict %>% clean_names()
+inflation <- inflation %>% clean_names()
+
+names(conflict)
+names(inflation)
+
+conflict <- conflict %>%
+  rename(country = location)
+
+inflation <- inflation %>%
+  rename(country = country, 
+         year = year, 
+         inflation = inflation)
+
+conflict <- conflict %>%
+  filter(!str_detect(country, ","))
+
+conflict <- conflict %>%
+  mutate(country = recode(country,
+                          "Myanmar (Burma)" = "Myanmar",
+                          "Russia (Soviet Union)" = "Russia",
+                          "Yemen (North Yemen)" = "Yemen",
+                          "Yemen (South Yemen)" = "Yemen",
+                          "Iran (Persia)" = "Iran"
+  ))
+
+conflict <- conflict %>%
+  filter(country %in% inflation$country)
+
+conflict2 <- conflict %>%
+  group_by(country, year) %>%
+  summarize(war = max(intensity_level > 0, 1, 0), .groups = "drop")
+```
+
+
+The last step is to merge the two data sets together and replace all NA values with '0'.
+
+
+```{r}
+conflict_inflation <- left_join(inflation, conflict2,
+                                by = c("country", "year"))
+
+conflict_inflation <- conflict_inflation %>%
+  mutate(war = ifelse(is.na(war), 0, war))
+```
+
+
+# Analysis
+
+
+The first route I took to looking into the data is a box plot that shows whether or not inflation reacts differently when a country is at war versus not at war.
+
+
+```{r}
+ggplot(conflict_inflation, aes(x = factor(war), y = inflation, fill = factor(war))) +
+  geom_boxplot(alpha = 0.7) +
+  scale_x_discrete(labels = c("No War", "War")) +
+  scale_fill_manual(values = c("#4CAF50", "#E63946"),
+                    labels = c("No War", "War")) +
+  labs(x = "Conflict Status",
+       y = "Inflation Rate",
+       fill = "Status",
+       title = "Inflation During War",
+       subtitle = "Comparison of Inflation Rates in Conflict vs Non-Conflict") +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold"), 
+    axis.title = element_text(face = "bold")
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, .1))
+  )
+```
+
+
+The second is a bar chart that shows the average inflation rate during periods of conflict. 
+
+
+```{r}
+conflict_inflation %>%
+  group_by(war) %>%
+  summarise(avg_inflation = mean(inflation, na.rm = TRUE)) %>%
+  ggplot(aes(x = factor(war), y = avg_inflation, fill = factor(war))) +
+  geom_col(width = 0.6, alpha = 0.9) +
+  scale_fill_manual(values = c("lightgreen", "red")) +
+  labs(x = "Conflict Status",
+       y = "Average Inflation",
+       title = "Average Inflation During War Periods", 
+       subtitle = "Mean Inflation Rate by Conflict Status") +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold"),
+    axis.title = element_text(face = "bold")
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, .1))
+  )
+```
+
+
+Finally, the table below similarly shows what the bar chart shows, but includes the standard deviation and total number of observations during these periods.
+
+
+```{r}
+sum_conflict <- conflict_inflation %>%
+  group_by(war) %>%
+  summarise(
+    mean_inflation = mean(inflation, na.rm = TRUE),
+    sd_inflation = sd(inflation, na.rm = TRUE),
+    observations = n()
+  )
+
+conflict_tbl <- sum_conflict %>%
+  mutate(
+    war = ifelse(war == 1, "War", "No War")
+  ) %>%
+  rename(
+    'Conflict Status' = war,
+    'Average Inflation' = mean_inflation,
+    'Standard Deviation' = sd_inflation,
+    'Observations' = observations
+  )
+
+kable(conflict_tbl,
+      caption = "Inflation During War vs Peace",
+      digits = 2,
+      align = "c")
+```
+
+
+# Discussion
+
+
+Each series of the visuals and table show similar results, which is that during periods of conflict, we see higher rates of inflation at substantial rates. 
+
+
+We are able to see this clearly in the bar chart, which like the box plot shows, the average inflation rate is significantly higher during periods of conflict. 0 (No War) sits at about 16-17% mean inflation rates while 1 (War) sit at around 41% inflation during periods of conflict. 
+
+
+The table confirms the results from the bar chart, while expanding on that information. It expands on the information with the input of standard deviation as a variable. From the data, we are seeing about a 20-point difference between conflict versus non-conflict periods. The standard deviation indicates that inflation is more volatile during conflict periods, reflecting more economic instability during those periods. 
+
