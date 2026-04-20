@@ -8,4 +8,4 @@ It examines how inflation changes during periods of war.
 - conflictdata.csv : data set 1
 - inflationdata.xlsx : data set 2
 - PSETTTTT444.qmd : raw Quarto document
-- Problem Set 4.pdf : final pdf version for the project
+- Problem Set 4.pdf : report for the analysis
